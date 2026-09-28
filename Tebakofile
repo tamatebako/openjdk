@@ -152,15 +152,20 @@ runtime:
   # tebako-runtime-2.5.1-* (metanorma 1.16.9-11 publish, run 34683540428).
   # The line moves to the current signed product release and the publish
   # gains a tag==line guard so the mismatch can never publish again.
-  wrapper_tebako: "2.7.0"
+  # v2.8.21 (2026-09-28): the launcher's driver raises the limnifs
+  # inline-metadata ceiling to 64 MiB (large-metadata payload images
+  # mount inlined) and speaks the payload min_runtime_tebako floor
+  # (tebako#666) — floored payloads skip stale cached runtimes at
+  # resolution instead of failing at mount.
+  wrapper_tebako: "2.8.21"
   # The wrapper's trust anchor, per tool-platform (the launcher is the
   # shipped runtime pair's process entry point — an unauthenticated
-  # download would be a supply-chain hole). Digests are the v2.7.0
-  # release's monolith SHA256SUMS entries, fetched 2026-09-12.
+  # download would be a supply-chain hole). Digests are the v2.8.21
+  # release's monolith SHA256SUMS entries, fetched 2026-09-28.
   wrapper_sha256:
-    macos-arm64: "550a8bd3a1b5e4830983fe34241384d58e3ddaef837b9a230704922ce1ca9b0e"
-    linux-gnu-x86_64: "fd62baca534cfca007c6a253365bed3df954d42ce913cf3c6db1e6a62b2101a9"
-    windows-ucrt64: "2f3981a319d6242af0c20cd767fd708b0fcf9accf605502f838b5678873c8883"
+    macos-arm64: "e6269526d268f5ef0b6718fbbde02efe7c957733adca9971c755ad544710f6a2"
+    linux-gnu-x86_64: "9f4a610d73b90b77d6bff3ff0e55fb691f74a54d52bd342ada59917195521d9a"
+    windows-ucrt64: "b2b98454c626020c50288818568d0e743c0dc7a8d57cdf91d8a8d48489eafdad"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
 # tfs CLI and the link-unit tarball from the tamatebako/tebako release.
@@ -169,10 +174,10 @@ runtime:
 # tools/pins.rb reads this block into $GITHUB_ENV). The tfs pins are
 # cross-checked against the release's SHA256SUMS at fetch time; the
 # link-unit tarballs are NOT in that monolith, so these pins are their
-# single trust anchor (verified against the v2.7.0 downloads 2026-09-12).
+# single trust anchor (verified against the v2.8.21 downloads 2026-09-28).
 tools:
   repo: "tamatebako/tebako"
-  release: "v2.7.0"
+  release: "v2.8.21"
   # The release machinery pin: the tamatebako/tebako-release-tooling tag
   # the Gemfile resolves (the sign step's tebako-release exe). The gem is
   # the signer's single owner (ecosystem invariant 10) — this feedstock
@@ -180,12 +185,12 @@ tools:
   release_tooling: "v0.1.0"
   sha256:
     tfs:
-      macos-arm64: "354939b1a6cad7d1112635726bba87dca2e419bcb3c38242f86bcdcdf4a77073"
-      linux-gnu-x86_64: "ca96fa3f9789c1c7e22a1eb4cce28f38277c0822a001dbaaa8d432e1bf268f33"
-      windows-ucrt64: "a30aa578c19b9babfeb24a7ff6fdbbc9f7fd8a1cff066d620645013c4c74d7bc"
+      macos-arm64: "38f4493c1a65d37ace603db171c23d9a4580bd6053e3a3007800fbcf7a494d83"
+      linux-gnu-x86_64: "8b752cb7bc8337960bf77f36cc375e6bc6f75b1d78e6d50c0000a33b26be51b9"
+      windows-ucrt64: "e5128ef8be90813bf9300dda39f204fff39f6d1e3eb4963128cbdfaeed88744a"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
-      macos-arm64: "0841d529237bf7920358f478621b89a73fad70bf46e0e78a4b5e8720a31ad0a4"
-      linux-gnu-x86_64: "b0324d7f3d0fc0a9a72d23ce902cbcf5db14197464f10988f8c5fb2f1b263c72"
+      macos-arm64: "ce377145349614ed088647679ea321d71bd193675a212241644b922709b57c0a"
+      linux-gnu-x86_64: "f997a363a02ba2df19f201f3de05e8e3e5c7cedf97d0c646ec4ecbedd377da58"
 
 image:
   format: limnifs
