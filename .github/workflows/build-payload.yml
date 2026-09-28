@@ -18,7 +18,12 @@ name: build-payload
 # reference derivation). The ONE release
 # job keeps only the duties that need the whole matrix: the read-only
 # AUDIT (tools/audit_release.rb) and the registry render
-# (tools/registry_update.rb) landed by bot PR. `tebako publish` is NOT
+# (tools/registry_update.rb) landed by bot PR. The bot PR rides the CI
+# PAT (tebako#686): a GITHUB_TOKEN-authored PR never triggers
+# pull_request workflows, so its required checks would pend forever and
+# auto-merge never fire — and the legs below skip the bot PR's
+# registry-only file set, leaving the lint gate's registry parse as its
+# meaningful check. `tebako publish` is NOT
 # used: the CLI refuses kind: runtime (runtimes publish through the
 # runtime release flow).
 #
@@ -59,8 +64,44 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Registry-only detection (tebako#686): the tag run's audit + registry
+  # job lands tpkg-registry.yaml by bot PR, and such a PR's whole change
+  # set is that one file. The decision rides the FILES, never the
+  # publish/* branch-name convention: the build legs skip exactly this
+  # file set (a registry-only PR's meaningful gate is the lint
+  # workflow's registry parse, not a full matrix run); every other PR —
+  # and every non-PR event, where this job never runs — builds
+  # unchanged.
+  changes:
+    name: registry-only change detection
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      registry_only: ${{ steps.detect.outputs.registry_only }}
+    steps:
+      - name: Detect the registry-only file set
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          files="$(gh pr view "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" \
+            --json files --jq '[.files[].path] | sort | join(",")')"
+          echo "changed files: $files"
+          if [ "$files" = "tpkg-registry.yaml" ]; then
+            echo "registry_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "registry_only=false" >> "$GITHUB_OUTPUT"
+          fi
   build:
     name: ${{ matrix.flavor }} / ${{ matrix.platform.triplet }}
+    needs: changes
+    # tebako#686: a registry-only bot PR skips the legs (its change set
+    # is exactly tpkg-registry.yaml). A skipped changes job — every
+    # non-PR event — never suppresses the legs, and neither does a
+    # detection failure (a missing output reads as "not registry-only":
+    # the safe default is to build).
+    if: github.event_name != 'pull_request' || needs.changes.outputs.registry_only != 'true'
     runs-on: ${{ matrix.platform.os }}
     # Spec 34 §3/§8.2 (the mirror of tebako-runtime-ruby#155's
     # _build-platform.yml): a job-level permissions block REPLACES the
@@ -563,7 +604,11 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      # The checkout rides the CI PAT so the registry bot branch's push
+      # is the PAT's doing as well (tebako#686 — the publish step below).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
       - name: Guard — the tag IS the tebako product line
         # The composed-name fetch path ({base}/v<line>/<asset>, spec 13
         # §2a) resolves release AND asset stem from the one pin, so a tag
@@ -605,7 +650,13 @@ jobs:
       # main is branch-protected (and the GitHub-Actions bypass is not
       # available on this plan): the registry lands by bot PR + auto-merge,
       # never by direct push. Idempotent across re-runs of the same tag.
+      # The PR is created AND merged under the CI PAT (tebako#686): a
+      # GITHUB_TOKEN-authored PR never triggers pull_request workflows,
+      # so its required checks would sit "expected" forever and
+      # auto-merge would never fire.
       - name: Publish the registry entry via pull request
+        env:
+          GH_TOKEN: ${{ secrets.TEBAKO_CI_PAT_TOKEN }}
         run: |
           set -euo pipefail
           cp tpkg-registry.yaml "$RUNNER_TEMP/registry.yaml"
@@ -649,13 +700,18 @@ jobs:
   # instead of any leg's. Green means: every build leg succeeded, and —
   # on tag runs — the audit + registry job succeeded too (a branch/PR
   # run skips it legitimately; signing rides in-leg, spec 13 §2a, so
-  # there is no separate publish/sign job to gate). `always() &&
+  # there is no separate publish/sign job to gate). One exception to
+  # "every leg succeeded": a registry-only bot PR (tebako#686) skips the
+  # legs BY DESIGN — its change set is exactly tpkg-registry.yaml, and
+  # the lint workflow's registry parse is that PR's meaningful gate —
+  # so a skipped build is green only when the changes job proved the
+  # file set. `always() &&
   # !cancelled()`: without it a failed upstream job would SKIP this one,
   # and a skipped required check reads as satisfied — the gate must
   # report red, never vanish.
   verify:
     name: all legs green
-    needs: [build, release]
+    needs: [changes, build, release]
     if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
@@ -663,13 +719,30 @@ jobs:
         run: |
           set -euo pipefail
           echo "ref:     ${{ github.ref }} (${{ github.event_name }})"
+          echo "changes: ${{ needs.changes.result }} (registry_only=${{ needs.changes.outputs.registry_only }})"
           echo "build:   ${{ needs.build.result }}"
           echo "release: ${{ needs.release.result }}"
-          # Every build leg must be green, on every event.
-          if [ "${{ needs.build.result }}" != "success" ]; then
-            echo "::error::not every build leg succeeded: ${{ needs.build.result }}"
+          # On a PR the detection feeds the legs' skip, so its own
+          # failure must read red, never vanish.
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "::error::the registry-only detection job did not succeed: ${{ needs.changes.result }}"
             exit 1
           fi
+          # Every build leg must be green — except on a registry-only
+          # bot PR, where the legs skip by design (tebako#686).
+          case "${{ needs.build.result }}" in
+            success) : ;;
+            skipped)
+              if [ "${{ needs.changes.outputs.registry_only }}" != "true" ]; then
+                echo "::error::the build legs skipped outside a registry-only PR — the registry-only guard misfired"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::not every build leg succeeded: ${{ needs.build.result }}"
+              exit 1
+              ;;
+          esac
           # The audit + registry job exists on tag runs only; a branch/PR
           # run skips it legitimately — any other non-success is red.
           case "${{ needs.release.result }}" in
