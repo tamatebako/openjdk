@@ -163,9 +163,9 @@ runtime:
   # download would be a supply-chain hole). Digests are the v2.8.21
   # release's monolith SHA256SUMS entries, fetched 2026-09-28.
   wrapper_sha256:
-    macos-arm64: "e6269526d268f5ef0b6718fbbde02efe7c957733adca9971c755ad544710f6a2"
-    linux-gnu-x86_64: "9f4a610d73b90b77d6bff3ff0e55fb691f74a54d52bd342ada59917195521d9a"
-    windows-ucrt64: "b2b98454c626020c50288818568d0e743c0dc7a8d57cdf91d8a8d48489eafdad"
+    macos-arm64: "2754c8985420a208f32ef277ca78c8c5f7e4a5aeac9a3e97c1420ece9b56edd8"
+    linux-gnu-x86_64: "2f2cf0ea2626179d3bad89198ffaae7e2f233d98f52227938f7935cbb660200f"
+    windows-ucrt64: "82b554586faa2ff3e51a7ef545e373d65994c959f63cacd9f6bf5b0221b4fabc"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
 # tfs CLI and the link-unit tarball from the tamatebako/tebako release.
