@@ -461,7 +461,11 @@ jobs:
           repo="tamatebako/tebako-runtime-openjdk"
           tag="${{ github.ref_name }}"
           out="out/${{ matrix.flavor }}-${{ matrix.platform.triplet }}"
-          notes="$(cat <<'NOTES'
+          # notes.md, not notes="$(cat <<…)" — a heredoc body inside
+          # "$( )" trips the macOS bash 3.2 quote parser on any apostrophe
+          # in the text ("store's" cost the v2.8.21 mac legs); a plain
+          # heredoc-to-file parses on every bash.
+          cat > notes.md <<'NOTES'
           ## Tebako openjdk runtime pairs
 
           Release line: this tag IS the tebako product line the pairs build against.
@@ -480,11 +484,10 @@ jobs:
           from the shards + the asset listing. The machine-readable
           resolution index is this repo's `tpkg-registry.yaml` (spec 04 §2).
           NOTES
-          )"
           if ! gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$repo" \
               --title "$tag — tebako-runtime openjdk (Temurin JRE + GraalVM CE JDK)" \
-              --notes "$notes" \
+              --notes-file notes.md \
               || gh release view "$tag" --repo "$repo" > /dev/null
           fi
           gh release view "$tag" --repo "$repo" --json assets \
