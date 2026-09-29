@@ -99,11 +99,17 @@ jobs:
     name: ${{ matrix.flavor }} / ${{ matrix.platform.triplet }}
     needs: changes
     # tebako#686: a registry-only bot PR skips the legs (its change set
-    # is exactly tpkg-registry.yaml). A skipped changes job — every
-    # non-PR event — never suppresses the legs, and neither does a
-    # detection failure (a missing output reads as "not registry-only":
-    # the safe default is to build).
-    if: github.event_name != 'pull_request' || needs.changes.outputs.registry_only != 'true'
+    # is exactly tpkg-registry.yaml). A detection failure (a missing
+    # output reads as "not registry-only": the safe default is to build).
+    # The status function is LOAD-BEARING (the tebako#686 follow-on the
+    # metanorma feedstock hit on its 1.17.0-4 tag, and this repo on the
+    # v2.8.23 tag, run 36634936902): a plain boolean here gets an
+    # implicit success() prepended, and the changes job's skip on every
+    # non-PR event then suppresses the legs — the tag publish would run
+    # zero builds and fail the all-legs-green gate. Naming !cancelled()
+    # defeats the implicit prepend: tags/pushes build, registry-only PRs
+    # still skip.
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.registry_only != 'true') }}
     runs-on: ${{ matrix.platform.os }}
     # Spec 34 §3/§8.2 (the mirror of tebako-runtime-ruby#155's
     # _build-platform.yml): a job-level permissions block REPLACES the
@@ -604,7 +610,10 @@ jobs:
   # the registry render + bot PR (git arbitrates the PR).
   release:
     name: audit + registry
-    if: startsWith(github.ref, 'refs/tags/')
+    # Same implicit-success() trap as the legs (the v2.8.23 tag run):
+    # needs: build + a plain boolean would skip this job whenever the
+    # detection-shaped leg guard engages. Name a status function.
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/') }}
     needs: build
     runs-on: ubuntu-latest
     env:
