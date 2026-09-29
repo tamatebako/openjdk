@@ -40,6 +40,10 @@ flavors:
           url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_linux_hotspot_21.0.12_8.tar.gz"
           sha256: "8a379a67c91a3ae61ffb33d46e0a40c7ba35e70713c4db31cfca30492f792eff"
           strip_components: 1
+        - platform: "aarch64-linux-gnu"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12_8.tar.gz"
+          sha256: "5f9c96b656827b9d14ebeda7739e25be554fa6d25669b03847c1df6e869c0679"
+          strip_components: 1
   graalvm:
     implementation: "graalvm"
     language_version: "25"
@@ -76,6 +80,10 @@ flavors:
         - platform: "x86_64-linux-gnu"
           url: "https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.3.4.1/graalvm-community-jdk-25i3-25.0.4.1_linux-x64_bin.tar.gz"
           sha256: "b2bc38d0c4141426eb44d0eefa3cc172c96faf92727d703b61541699128b6fc7"
+          strip_components: 1
+        - platform: "aarch64-linux-gnu"
+          url: "https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.3.4.1/graalvm-community-jdk-25i3-25.0.4.1_linux-aarch64_bin.tar.gz"
+          sha256: "7e8a3fbc2e4c28566107039a298cef690d86a37599a8e50536fc5a65b7f1bd56"
           strip_components: 1
 
 build:
@@ -165,6 +173,7 @@ runtime:
   wrapper_sha256:
     macos-arm64: "2754c8985420a208f32ef277ca78c8c5f7e4a5aeac9a3e97c1420ece9b56edd8"
     linux-gnu-x86_64: "2f2cf0ea2626179d3bad89198ffaae7e2f233d98f52227938f7935cbb660200f"
+    linux-gnu-arm64: "22d1fc934e0bcc2d9d4349a81b5bcc274498e3cd771fcd858a2672d3a1928808"
     windows-ucrt64: "82b554586faa2ff3e51a7ef545e373d65994c959f63cacd9f6bf5b0221b4fabc"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
@@ -187,10 +196,12 @@ tools:
     tfs:
       macos-arm64: "38f4493c1a65d37ace603db171c23d9a4580bd6053e3a3007800fbcf7a494d83"
       linux-gnu-x86_64: "8b752cb7bc8337960bf77f36cc375e6bc6f75b1d78e6d50c0000a33b26be51b9"
+      linux-gnu-arm64: "a8042810a1428dd4dbab8ff3473a0015160ed1b529c74007bbbb2bf075c1a03f"
       windows-ucrt64: "e5128ef8be90813bf9300dda39f204fff39f6d1e3eb4963128cbdfaeed88744a"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
       macos-arm64: "ce377145349614ed088647679ea321d71bd193675a212241644b922709b57c0a"
       linux-gnu-x86_64: "f997a363a02ba2df19f201f3de05e8e3e5c7cedf97d0c646ec4ecbedd377da58"
+      linux-gnu-arm64: "605f97c4eed61f4832a719a6eb30ee775fe1cba42044bcb303181ad3b715f546"
 
 image:
   format: limnifs
