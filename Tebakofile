@@ -165,16 +165,24 @@ runtime:
   # mount inlined) and speaks the payload min_runtime_tebako floor
   # (tebako#666) — floored payloads skip stale cached runtimes at
   # resolution instead of failing at mount.
-  wrapper_tebako: "2.8.21"
+  # v2.8.23 (2026-09-29): the launcher's driver routes spawn arguments
+  # by HELD mounts, not lexical coverage — absolute host paths under a
+  # root-mounted payload pass through to the child (tebako#692/#693,
+  # the metanorma-docker xml2rfc spawn class) — and the tpkg trailer
+  # locator's PE arm boots Authenticode-signed stitched exes
+  # (tebako#689). v2.8.22 (press support for ruby 4.0.7) touched no
+  # driver code this pair consumes, so the line skips it. First tag
+  # carrying the aarch64-linux-gnu legs (#54).
+  wrapper_tebako: "2.8.23"
   # The wrapper's trust anchor, per tool-platform (the launcher is the
   # shipped runtime pair's process entry point — an unauthenticated
-  # download would be a supply-chain hole). Digests are the v2.8.21
-  # release's monolith SHA256SUMS entries, fetched 2026-09-28.
+  # download would be a supply-chain hole). Digests are the v2.8.23
+  # release's monolith SHA256SUMS entries, fetched 2026-09-29.
   wrapper_sha256:
-    macos-arm64: "2754c8985420a208f32ef277ca78c8c5f7e4a5aeac9a3e97c1420ece9b56edd8"
-    linux-gnu-x86_64: "2f2cf0ea2626179d3bad89198ffaae7e2f233d98f52227938f7935cbb660200f"
-    linux-gnu-arm64: "22d1fc934e0bcc2d9d4349a81b5bcc274498e3cd771fcd858a2672d3a1928808"
-    windows-ucrt64: "82b554586faa2ff3e51a7ef545e373d65994c959f63cacd9f6bf5b0221b4fabc"
+    macos-arm64: "c0612d95e224b4738ef135f9bad51b7a4e213365190996f98e9c9afec9a67393"
+    linux-gnu-x86_64: "e21548ecb2746fcfea07d493fe423566fc363775703cc8b7257422fc1424c05b"
+    linux-gnu-arm64: "006d4ee1e2aba0ae281e8567410114fd71552ff04cdd569465bf85b0c29c60fd"
+    windows-ucrt64: "edd18a3f029db47d378acbc860348fa138730782b237e496dcaaa7e07b46b63b"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
 # tfs CLI and the link-unit tarball from the tamatebako/tebako release.
@@ -183,10 +191,10 @@ runtime:
 # tools/pins.rb reads this block into $GITHUB_ENV). The tfs pins are
 # cross-checked against the release's SHA256SUMS at fetch time; the
 # link-unit tarballs are NOT in that monolith, so these pins are their
-# single trust anchor (verified against the v2.8.21 downloads 2026-09-28).
+# single trust anchor (verified against the v2.8.23 downloads 2026-09-29).
 tools:
   repo: "tamatebako/tebako"
-  release: "v2.8.21"
+  release: "v2.8.23"
   # The release machinery pin: the tamatebako/tebako-release-tooling tag
   # the Gemfile resolves (the sign step's tebako-release exe). The gem is
   # the signer's single owner (ecosystem invariant 10) — this feedstock
@@ -194,14 +202,14 @@ tools:
   release_tooling: "v0.1.0"
   sha256:
     tfs:
-      macos-arm64: "38f4493c1a65d37ace603db171c23d9a4580bd6053e3a3007800fbcf7a494d83"
-      linux-gnu-x86_64: "8b752cb7bc8337960bf77f36cc375e6bc6f75b1d78e6d50c0000a33b26be51b9"
-      linux-gnu-arm64: "a8042810a1428dd4dbab8ff3473a0015160ed1b529c74007bbbb2bf075c1a03f"
-      windows-ucrt64: "e5128ef8be90813bf9300dda39f204fff39f6d1e3eb4963128cbdfaeed88744a"
+      macos-arm64: "ec82f16db7fa0040c82d36cce8626167669510beb9779a4d239c94e86330cec2"
+      linux-gnu-x86_64: "b100df60b9aaf1022d4dcb3e43eab6c30de39bc1a7dcf1265610a0531b9a28c4"
+      linux-gnu-arm64: "718389d36f0e7b1da88726c0dbf8460791183079bfa78627916fe2e0b1822566"
+      windows-ucrt64: "b27a0fa7f9e9f8398d20d4e7589e53ce5f84fdfb287aa8ae9d06949d8fcad1d9"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
-      macos-arm64: "ce377145349614ed088647679ea321d71bd193675a212241644b922709b57c0a"
-      linux-gnu-x86_64: "f997a363a02ba2df19f201f3de05e8e3e5c7cedf97d0c646ec4ecbedd377da58"
-      linux-gnu-arm64: "605f97c4eed61f4832a719a6eb30ee775fe1cba42044bcb303181ad3b715f546"
+      macos-arm64: "16b6dfba230b4df345302653390cdffaf67a16b78009c4fe15a86ee8b6f08c5e"
+      linux-gnu-x86_64: "859c80c01364a7bcda4ec15eeb17796fd9efcbcc3e107b8e703d2e20b0ffcd5e"
+      linux-gnu-arm64: "7f58408c0ef03eda42144d695c62a31f087be42f38bbfc3fd6e89ab241051bd7"
 
 image:
   format: limnifs
