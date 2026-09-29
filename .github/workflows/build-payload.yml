@@ -2,7 +2,9 @@ name: build-payload
 # openjdk feedstock: fetch → stage → image → smoke → (on tags) publish +
 # sign IN-LEG. One mechanical leg per (flavor × version × platform) —
 # flavors are the spec 28 §8 implementation axis (temurin / graalvm),
-# platforms aarch64-macos + x86_64-windows-ucrt + x86_64-linux-gnu.
+# platforms aarch64-macos + x86_64-windows-ucrt + x86_64-linux-gnu +
+# aarch64-linux-gnu (native arm64 runner — no compilation anywhere in
+# this feedstock, so the leg needs nothing beyond the runner itself).
 #
 # kind: runtime (spec 28/29): each leg ships the PAIR — the wrapper exe
 # (tebako-runtime-launcher) + the env image (.tfs) + sidecars + the
@@ -147,6 +149,11 @@ jobs:
           - triplet: x86_64-linux-gnu
             asset_platform: linux-gnu-x86_64
             os: ubuntu-24.04
+            exe_suffix: ""
+            tar: tar
+          - triplet: aarch64-linux-gnu
+            asset_platform: linux-gnu-arm64
+            os: ubuntu-24.04-arm
             exe_suffix: ""
             tar: tar
     steps:
