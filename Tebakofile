@@ -110,7 +110,8 @@ runtime:
   mount_root_override: false       # closed default — nothing in the JVM follows TEBAKO_MOUNT_ROOT; granting a no-op knob violates spec 00 §9
   # The tebako product line the pair builds against: the wrapper exe
   # (tebako-runtime-launcher) and the preload shim (link-unit). The line
-  # number names the artifacts (tebako-runtime-<line>-21.0.12-*) and the
+  # number names the artifacts (tebako-runtime-<line>-<impl>-21.0.12-*
+  # since tebako#716 — the flavor's implementation segment) and the
   # release tag (v<line> — the trr convention: the tag IS the tebako
   # line; distinct from the toolkit-era payload tags like 21.0.12-2).
   #
@@ -199,7 +200,13 @@ tools:
   # the Gemfile resolves (the sign step's tebako-release exe). The gem is
   # the signer's single owner (ecosystem invariant 10) — this feedstock
   # carries no copy of it.
-  release_tooling: "v0.1.0"
+  #
+  # v0.5.1: tebako#716's dual-era package-name grammar (on the v0.5.0
+  # seam; v0.5.1 is the publish-leg convergence hardening on top). This
+  # feedstock's sign pass is adapter-less and composes no names
+  # (SIGN_ONLY_STEMS flows pins.rb's stem), so the bump is transparent —
+  # it keeps the tooling line on the gem every sibling factory pins.
+  release_tooling: "v0.5.1"
   sha256:
     tfs:
       macos-arm64: "ec82f16db7fa0040c82d36cce8626167669510beb9779a4d239c94e86330cec2"
