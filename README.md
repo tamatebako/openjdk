@@ -7,12 +7,25 @@ point) plus the env image (`.tfs`, mounted — never extracted).
 
 - **kind:** runtime (`engine: java`, `implementation: temurin`)
 - **upstream:** Temurin JRE 21.0.12+8 (Adoptium), repacked — no compilation
-- **artifacts:** `tebako-runtime-<tebako-line>-21.0.12-<platform>[.exe]`
+- **artifacts:** `tebako-runtime-<tebako-line>-<implementation>-<version>-<platform>[.exe]`
   + `.tfs` + `.sha256` sidecars + `<stem>.manifest.json` release shards
   (+ a detached `.asc` per served name on signing-enabled lines), and
   this registry (`tpkg-registry.yaml`) on the repo's default branch
 - **visibility:** `exec-cache` (spec 29 §3) with the link-unit preload
   shim granted on POSIX (the jail survives the exec into the JVM)
+
+The artifact name carries the distribution segment
+([tebako#716](https://github.com/tamatebako/tebako/issues/716)): new
+publishes spell
+`tebako-runtime-<tebako-line>-<implementation>-<version>-<platform>`,
+where `<implementation>` is the flavor's identity (`temurin` or
+`graalvm` — both flavors ship in the same release). Releases already
+published keep the segment-less spelling
+(`tebako-runtime-<tebako-line>-<version>-<platform>`) forever: they are
+immutable and sha256-pinned in this registry, and re-running an old tag
+composes that ref's own names, self-consistently. Tooling that reads
+artifact names (the registry mirror, the release gem) accepts both
+spellings.
 
 Consumers' app payloads declare
 `runtime_requirement: {engine: java, constraint: ">= 21"}` on their

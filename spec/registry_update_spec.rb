@@ -72,9 +72,15 @@ RSpec.describe RegistryUpdate do
   # machine-readable unit, spec 13 §2a): the exe pair's own fields plus
   # the `image` block the registry mirrors. `name_suffix` mints a second
   # asset claiming the same platform (the duplicate-triplet case).
-  def shard(implementation:, java:, platform:, tebako_version: version, image: :default, name_suffix: "")
+  # `new_era` mints the post-tebako#716 spelling (the implementation
+  # segment in the stem — what tools/build writes from this branch on).
+  def shard(implementation:, java:, platform:, tebako_version: version, image: :default, name_suffix: "", new_era: false)
     exe_suffix = platform.start_with?("windows") ? ".exe" : ""
-    stem = "tebako-runtime-#{tebako_version}-#{java}-#{platform}#{name_suffix}"
+    stem = if new_era
+             "tebako-runtime-#{tebako_version}-#{implementation}-#{java}-#{platform}#{name_suffix}"
+           else
+             "tebako-runtime-#{tebako_version}-#{java}-#{platform}#{name_suffix}"
+           end
     body = { "tebako_version" => tebako_version, "java_version" => java,
              "implementation" => implementation, "platform" => platform,
              "filename" => "#{stem}#{exe_suffix}",
@@ -152,6 +158,27 @@ RSpec.describe RegistryUpdate do
     expect(gv["platforms"]["x86_64-linux-gnu"]["artifact"])
       .to eq("tebako-runtime-9.9.9-25.0.4.1-linux-gnu-x86_64.tfs")
     expect(graalvm["default"]).to eq("25.0.4.1")
+  end
+
+  # tebako#716: a post-flip shard's filenames carry the implementation
+  # segment — the renderer mirrors the shard's own strings verbatim,
+  # never recomposes a name, so the new spelling flows through untouched
+  # (and the segment-less spellings above keep flowing as published).
+  it "mirrors a post-tebako#716 (implementation-segment) artifact name verbatim" do
+    shards = shards_of({ implementation: "temurin", java: "21.0.12", platform: "macos-arm64", new_era: true },
+                       { implementation: "graalvm", java: "25.0.4.1", platform: "linux-gnu-x86_64", new_era: true })
+    doc = YAML.safe_load(render(shards))
+
+    temurin = payload_named(doc, "openjdk")
+    v = temurin["versions"].find { |x| x["version"] == "21.0.12" }
+    stem = "tebako-runtime-9.9.9-temurin-21.0.12-macos-arm64"
+    expect(v["platforms"]["aarch64-macos"])
+      .to eq("artifact" => "#{stem}.tfs", "sha256" => Digest::SHA256.hexdigest("BYTES-#{stem}.tfs"))
+
+    graalvm = payload_named(doc, "openjdk-graalvm")
+    gv = graalvm["versions"].find { |x| x["version"] == "25.0.4.1" }
+    expect(gv["platforms"]["x86_64-linux-gnu"]["artifact"])
+      .to eq("tebako-runtime-9.9.9-graalvm-25.0.4.1-linux-gnu-x86_64.tfs")
   end
 
   it "upserts into an existing registry, preserving other payloads and withdrawn marks" do
