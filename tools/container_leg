@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# tools/container_leg — the musl legs' fetch + build, run INSIDE the
+# tpkg-builder container (alpine, musl libc) by build-payload.yml's
+# container step. A leg whose matrix row carries `container:` cannot run
+# the host fetch/build steps: the pinned musl binaries (the tfs imager,
+# the wrapper exe, the preload shim) and the staged JRE's java execute
+# only under musl, and tools/build's read-back + boot/wrapper smokes
+# execute them. The host keeps the arch-independent steps (checkout,
+# pins.rb, the artifact upload, the tag-run publish/sign/attest).
+#
+# This script is the in-container mirror of the workflow's three fetch
+# steps (imager / wrapper / preload shim — same pins, same sha256
+# verification, same monolith cross-check) followed by tools/build, plus
+# the chown handback that returns the root-written workspace files to the
+# runner user (root in the container writes root-owned files onto the
+# bind mount; the host's upload/publish steps must read them).
+#
+# Inputs (env, forwarded by the workflow's `docker run -e` list; the pins
+# themselves flow from Tebakofile via the host's pins.rb step — this
+# script carries NO version or digest literals):
+#   TEBAKO_RELEASE / TFS_ASSET / TFS_SHA256         the imager pin
+#   WRAPPER_RELEASE / WRAPPER_ASSET / WRAPPER_SHA256 the wrapper pin
+#   LINK_UNIT_ASSET / LINK_UNIT_SHA256 / PRELOAD_SHIM the shim pin (POSIX)
+#   TRIPLET / ASSET_PLATFORM / EXE_SUFFIX / TAR / FLAVOR  tools/build's
+#   TEBAKO_RELEASE_SIGNING_ENABLED / TEBAKO_RELEASE_SIGNING_KEYID
+#   GITHUB_REF_NAME                                 the shard's release ref
+set -euo pipefail
+
+TFS_BIN=".packager/tfs${EXE_SUFFIX}"
+WRAPPER_BIN=".packager/wrapper/tebako-runtime-launcher${EXE_SUFFIX}"
+export WRAPPER_BIN
+
+step() { printf '\n== %s\n' "$*"; }
+
+# The imager (tfs mkimage/extract) — the product repo's own published
+# binary, pin cross-checked against the release's SHA256SUMS monolith.
+# The dead-binary smoke runs HERE (the host cannot execute a musl binary).
+step "fetch the imager ($TFS_ASSET, pinned by Tebakofile)"
+mkdir -p .packager/wrapper
+base="https://github.com/tamatebako/tebako/releases/download/$TEBAKO_RELEASE"
+curl -sL --fail -o "$TFS_BIN" "$base/$TFS_ASSET"
+curl -sL --fail -o SHA256SUMS "$base/SHA256SUMS"
+echo "$TFS_SHA256  $TFS_BIN" | sha256sum -c -
+# The pin must agree with the release's own sums (both anchored).
+got=""
+while read -r sum name; do
+  [ "$name" = "$TFS_ASSET" ] && got="$sum"
+done < SHA256SUMS
+[ "$got" = "$TFS_SHA256" ] || { echo "::error::pin mismatch for $TFS_ASSET: Tebakofile=$TFS_SHA256 release=${got:-ABSENT}"; exit 1; }
+chmod +x "$TFS_BIN"
+"$TFS_BIN" > /dev/null
+
+# The wrapper exe — the runtime pair's process entry point (spec 29).
+step "fetch the wrapper ($WRAPPER_ASSET, pinned by Tebakofile)"
+wbase="https://github.com/tamatebako/tebako/releases/download/$WRAPPER_RELEASE"
+curl -sL --fail -o "$WRAPPER_BIN" "$wbase/$WRAPPER_ASSET"
+echo "$WRAPPER_SHA256  $WRAPPER_BIN" | sha256sum -c -
+chmod +x "$WRAPPER_BIN"
+
+# The preload shim (POSIX legs — every container leg today): the
+# link-unit tarball is NOT in the release's monolith; the recipe pin is
+# the anchor.
+step "fetch the preload shim ($LINK_UNIT_ASSET, pinned by Tebakofile)"
+curl -sL --fail -o .packager/link-unit.tar.gz "$base/$LINK_UNIT_ASSET"
+echo "$LINK_UNIT_SHA256  .packager/link-unit.tar.gz" | sha256sum -c -
+tar -xzf .packager/link-unit.tar.gz -C .packager
+[ -f "$PRELOAD_SHIM" ] || { echo "::error::link-unit tarball carries no $PRELOAD_SHIM"; exit 1; }
+
+step "build the runtime pair (tools/build)"
+TFS_CLI="$TFS_BIN" tools/build
+
+# Root in the container writes root-owned files onto the bind mount; hand
+# them back to the runner user so the host steps (artifact upload, the
+# tag-run publish/sign/attest) can read/write them.
+step "chown the workspace back to the runner user"
+uid=$(stat -c %u Tebakofile); gid=$(stat -c %g Tebakofile)
+chown -R "$uid:$gid" .packager out SHA256SUMS 2>/dev/null || true

@@ -4,7 +4,14 @@ name: build-payload
 # flavors are the spec 28 §8 implementation axis (temurin / graalvm),
 # platforms aarch64-macos + x86_64-windows-ucrt + x86_64-linux-gnu +
 # aarch64-linux-gnu (native arm64 runner — no compilation anywhere in
-# this feedstock, so the leg needs nothing beyond the runner itself).
+# this feedstock, so the leg needs nothing beyond the runner itself) plus
+# the temurin-only musl pair (x86_64-linux-musl + aarch64-linux-musl —
+# graalvm-ce-builds publishes no musl assets, so the musl legs ride the
+# matrix's include: arm). The musl legs run their fetch + build INSIDE
+# the tpkg-builder container (alpine, musl libc — the pinned musl
+# binaries and the staged JRE execute only there); the arch-independent
+# steps (checkout, pins.rb, upload, the tag-run publish/sign/attest) stay
+# on the runner, exactly the tr-python container-leg idiom.
 #
 # kind: runtime (spec 28/29): each leg ships the PAIR — the wrapper exe
 # (tebako-runtime-launcher) + the env image (.tfs) + sidecars + the
@@ -165,6 +172,35 @@ jobs:
             os: ubuntu-24.04-arm
             exe_suffix: ""
             tar: tar
+        # The temurin-only musl pair (graalvm-ce-builds publishes no musl
+        # assets — verified against graal-25.3.4.1's listing): legs the
+        # plain flavor × platform cartesian cannot express, so they ride
+        # include: rows pinning flavor + a full platform row. `container`
+        # names the tpkg-builder image the leg's fetch + build run inside
+        # (the tr-python container-leg idiom: a musl binary cannot
+        # execute on the gnu host, and tools/build's smokes execute the
+        # staged java + the shipped pair) — the host keeps the
+        # arch-independent steps. The release tools read these rows
+        # through Feedstock.matrix_include_legs (a row naming an
+        # undeclared flavor or re-pairing a cartesian leg is a named
+        # refusal there).
+        include:
+          - flavor: temurin
+            platform:
+              triplet: x86_64-linux-musl
+              asset_platform: linux-musl-x86_64
+              os: ubuntu-24.04
+              exe_suffix: ""
+              tar: tar
+              container: ghcr.io/tamatebako/tpkg-builder-x86_64-linux-musl:v1
+          - flavor: temurin
+            platform:
+              triplet: aarch64-linux-musl
+              asset_platform: linux-musl-arm64
+              os: ubuntu-24.04-arm
+              exe_suffix: ""
+              tar: tar
+              container: ghcr.io/tamatebako/tpkg-builder-aarch64-linux-musl:v1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -195,8 +231,11 @@ jobs:
       # published binary — releases are the interface; the feedstock
       # never builds the tebako stack from source. The pin flows from
       # Tebakofile and is cross-checked against the release's SHA256SUMS,
-      # like the recipe pins the Temurin archive's.
+      # like the recipe pins the Temurin archive's. (Container legs: the
+      # fetch rides tools/container_leg inside the container — the musl
+      # binary cannot execute on the gnu host, smoke included.)
       - name: Fetch the imager (pinned by Tebakofile, sha256-verified)
+        if: matrix.platform.container == null
         shell: bash
         env:
           TFS_BIN: .packager/tfs${{ matrix.platform.exe_suffix }}
@@ -224,6 +263,7 @@ jobs:
       # shippable PEs — .packager itself also carries the tfs imager exe
       # (a build tool, never signed).
       - name: Fetch the wrapper (pinned by Tebakofile)
+        if: matrix.platform.container == null
         shell: bash
         env:
           WRAPPER_BIN: .packager/wrapper/tebako-runtime-launcher${{ matrix.platform.exe_suffix }}
@@ -443,7 +483,7 @@ jobs:
       # host-IO binding survives the exec into the JVM. NOT in the
       # release's SHA256SUMS monolith: the recipe pin is the anchor.
       - name: Fetch the preload shim (link-unit, pinned by Tebakofile)
-        if: matrix.platform.exe_suffix == ''
+        if: matrix.platform.exe_suffix == '' && matrix.platform.container == null
         shell: bash
         run: |
           set -euo pipefail
@@ -454,7 +494,42 @@ jobs:
           tar -xzf .packager/link-unit.tar.gz -C .packager
           [ -f "$PRELOAD_SHIM" ] || { echo "::error::link-unit tarball carries no $PRELOAD_SHIM"; exit 1; }
 
+      # The container legs (the temurin musl pair): fetch + build run
+      # INSIDE the tpkg-builder image — the pinned musl binaries (imager,
+      # wrapper, shim) and the staged JRE execute only under musl libc,
+      # and tools/build's read-back + smokes execute them. The script is
+      # the in-container mirror of the three fetch steps above + the
+      # build, ending with the chown handback (root in the container
+      # writes root-owned files onto the bind mount; the host's upload /
+      # publish steps must read them). The pins flow from the host's
+      # pins.rb step through $GITHUB_ENV — the workflow carries no
+      # version or digest literals here either. GITHUB_REF_NAME feeds the
+      # shard's built_from release ref on tag runs.
+      - name: Fetch the toolchain + build the pair (container legs)
+        if: matrix.platform.container != null
+        shell: bash
+        env:
+          TEBAKO_RELEASE_SIGNING_ENABLED: ${{ vars.TEBAKO_RELEASE_SIGNING_ENABLED }}
+          TEBAKO_RELEASE_SIGNING_KEYID: ${{ vars.TEBAKO_RELEASE_SIGNING_KEYID }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e TEBAKO_RELEASE -e TFS_ASSET -e TFS_SHA256 \
+            -e WRAPPER_RELEASE -e WRAPPER_ASSET -e WRAPPER_SHA256 \
+            -e LINK_UNIT_ASSET -e LINK_UNIT_SHA256 -e PRELOAD_SHIM \
+            -e TEBAKO_RELEASE_SIGNING_ENABLED -e TEBAKO_RELEASE_SIGNING_KEYID \
+            -e GITHUB_REF_NAME \
+            -e TRIPLET="${{ matrix.platform.triplet }}" \
+            -e ASSET_PLATFORM="${{ matrix.platform.asset_platform }}" \
+            -e EXE_SUFFIX="${{ matrix.platform.exe_suffix }}" \
+            -e TAR="${{ matrix.platform.tar }}" \
+            -e FLAVOR="${{ matrix.flavor }}" \
+            -v "${{ github.workspace }}:/mnt/w" -w /mnt/w \
+            "${{ matrix.platform.container }}" \
+            bash tools/container_leg
+
       - name: Build the runtime pair
+        if: matrix.platform.container == null
         shell: bash
         env:
           TRIPLET: ${{ matrix.platform.triplet }}

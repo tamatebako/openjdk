@@ -109,18 +109,57 @@ module Feedstock
             "the release tools read the leg set from it"
     end
 
+    rows.map { |row| platform_leg(row, env) }
+  end
+
+  # The matrix's include: arm — the legs OUTSIDE the plain flavor ×
+  # platform cartesian (the asymmetric surface: graalvm-ce-builds
+  # publishes no musl assets, so the musl legs exist for temurin only and
+  # ride include rows that pin flavor + a full platform row). Each row
+  # must pair a flavor the axis declares with a platform row carrying the
+  # three spellings; an include that re-pairs a cartesian (flavor,
+  # triplet) is a named refusal (that leg belongs on the plain axes —
+  # GitHub would merge it into the existing leg, and the model would
+  # double-count it). Absent include: is fine (the pre-musl shape); any
+  # other unrecognized shape is a named refusal, never a guess.
+  def matrix_include_legs(env = ENV)
+    rows = matrix_block(env)["include"]
+    return [] if rows.nil?
+    unless rows.is_a?(Array)
+      raise FeedstockError,
+            "NAMED FAILURE: #{matrix_path(env)} build matrix include: is not a list — " \
+            "the release tools read the extra legs from it"
+    end
+
+    cartesian = matrix_flavors(env).product(matrix_platforms(env))
     rows.map do |row|
-      triplet = row.is_a?(Hash) && row["triplet"]
-      asset = row.is_a?(Hash) && row["asset_platform"]
-      suffix = row.is_a?(Hash) && row["exe_suffix"]
-      unless triplet.is_a?(String) && asset.is_a?(String) && suffix.is_a?(String)
+      flavor = row.is_a?(Hash) && row["flavor"]
+      platform = row.is_a?(Hash) && row["platform"]
+      unless flavor.is_a?(String) && platform.is_a?(Hash)
         raise FeedstockError,
-              "NAMED FAILURE: #{matrix_path(env)} build matrix platform row lacks " \
-              "triplet/asset_platform/exe_suffix: #{row.inspect}"
+              "NAMED FAILURE: #{matrix_path(env)} build matrix include row lacks " \
+              "flavor/platform: #{row.inspect}"
+      end
+      unless matrix_flavors(env).include?(flavor)
+        raise FeedstockError,
+              "NAMED FAILURE: #{matrix_path(env)} build matrix include row names unknown " \
+              "flavor #{flavor.inspect} (the axis declares: #{matrix_flavors(env).join(', ')})"
       end
 
-      PlatformLeg.new(triplet, asset, suffix)
+      leg = platform_leg(platform, env)
+      if cartesian.any? { |f, l| f == flavor && l.triplet == leg.triplet }
+        raise FeedstockError,
+              "NAMED FAILURE: #{matrix_path(env)} build matrix include row re-pairs the " \
+              "cartesian leg #{flavor}/#{leg.triplet} — that leg belongs on the plain axes"
+      end
+
+      [flavor, leg]
     end
+  end
+
+  # The whole leg set: the plain cartesian plus the include arm's extras.
+  def matrix_legs(env = ENV)
+    matrix_flavors(env).product(matrix_platforms(env)) + matrix_include_legs(env)
   end
 
   # The flavor's distribution identity (Tebakofile's
@@ -153,9 +192,10 @@ module Feedstock
     [exe, "#{exe}.sha256", "#{stem}.tfs", "#{stem}.tfs.sha256", "#{stem}.manifest.json"]
   end
 
-  # Every leg's write-once names across the whole build matrix.
+  # Every leg's write-once names across the whole build matrix (the plain
+  # cartesian plus the include arm).
   def expected_asset_names(env = ENV)
-    matrix_flavors(env).product(matrix_platforms(env)).flat_map do |flavor, leg|
+    matrix_legs(env).flat_map do |flavor, leg|
       leg_asset_names(flavor, leg, env)
     end.sort
   end
@@ -168,5 +208,20 @@ module Feedstock
     raise FeedstockError,
           "NAMED FAILURE: #{matrix_path(env)} carries no jobs.build.strategy.matrix block — " \
           "the release tools read the leg set from it"
+  end
+
+  # One platform row → one PlatformLeg, fail-closed on the three
+  # spellings (shared by the platform: axis and the include: arm).
+  def platform_leg(row, env)
+    triplet = row.is_a?(Hash) && row["triplet"]
+    asset = row.is_a?(Hash) && row["asset_platform"]
+    suffix = row.is_a?(Hash) && row["exe_suffix"]
+    unless triplet.is_a?(String) && asset.is_a?(String) && suffix.is_a?(String)
+      raise FeedstockError,
+            "NAMED FAILURE: #{matrix_path(env)} build matrix platform row lacks " \
+            "triplet/asset_platform/exe_suffix: #{row.inspect}"
+    end
+
+    PlatformLeg.new(triplet, asset, suffix)
   end
 end
