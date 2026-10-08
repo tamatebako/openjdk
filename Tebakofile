@@ -56,7 +56,7 @@ flavors:
           sha256: "9a7f8712a2741bb14e2452eed2de99f62d02e05617e27d59f1861a0cdad58486"
           strip_components: 1
         - platform: "aarch64-linux-musl"
-          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12_8.tar.gz"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_alpine-linux_hotspot_21.0.12_8.tar.gz"
           sha256: "a4f70d2be5c55940dd60b6636643a05125e60e6c3dbc2a8402032b0346744dfa"
           strip_components: 1
   graalvm:
