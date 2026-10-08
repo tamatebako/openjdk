@@ -54,7 +54,8 @@ is armed — signs every one of those served names itself (spec 09 §5's
 no-fold rule: nothing is ever "covered by" another artifact's signature;
 the shard declares each artifact's `{keyid, asc}` block from the
 `TEBAKO_RELEASE_SIGNING_KEYID` repo variable). No shared mutable file
-exists, so all six legs (2 flavors × 3 platforms) publish concurrently
+exists, so every leg (2 flavors × 4 platforms, plus temurin's 2 musl
+legs — graalvm ships no musl build upstream) publishes concurrently
 with zero rendezvous.
 
 There is **no monolithic `manifest.json` / `SHA256SUMS.txt` release

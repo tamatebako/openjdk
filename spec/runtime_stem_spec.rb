@@ -32,7 +32,10 @@ RSpec.describe "the runtime pair's stem (tebako#716)" do
   end
 
   it "agrees across every compose site and every matrix leg" do
-    Feedstock.matrix_flavors.product(Feedstock.matrix_platforms).each do |flavor, leg|
+    # matrix_legs, not the raw flavor × platform cartesian: the include
+    # arm's legs (the temurin musl pair) are real legs too, and pins.rb
+    # must compose their stems as well.
+    Feedstock.matrix_legs.each do |flavor, leg|
       model = Feedstock.runtime_stem(flavor, leg.asset_platform)
       expect(pins_env(leg.asset_platform, flavor).fetch("RUNTIME_STEM"))
         .to eq(model), "tools/pins.rb's RUNTIME_STEM disagrees with Feedstock.runtime_stem for #{flavor}/#{leg.asset_platform}"

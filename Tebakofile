@@ -44,6 +44,21 @@ flavors:
           url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12_8.tar.gz"
           sha256: "5f9c96b656827b9d14ebeda7739e25be554fa6d25669b03847c1df6e869c0679"
           strip_components: 1
+        # The musl (alpine) pair — temurin only: graalvm-ce-builds
+        # publishes NO musl assets (verified against graal-25.3.4.1's
+        # asset listing), so the graalvm flavor has no musl sources and
+        # the build matrix's musl legs ride the include: arm, pinned to
+        # temurin (the packed-metanorma Alpine surface, packed-metanorma#236).
+        # Digests cross-checked against Adoptium's .sha256.txt sidecars
+        # 2026-10-08; the alpine tarballs nest one dir like the gnu ones.
+        - platform: "x86_64-linux-musl"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_x64_alpine-linux_hotspot_21.0.12_8.tar.gz"
+          sha256: "9a7f8712a2741bb14e2452eed2de99f62d02e05617e27d59f1861a0cdad58486"
+          strip_components: 1
+        - platform: "aarch64-linux-musl"
+          url: "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jre_aarch64_alpine-linux_hotspot_21.0.12_8.tar.gz"
+          sha256: "a4f70d2be5c55940dd60b6636643a05125e60e6c3dbc2a8402032b0346744dfa"
+          strip_components: 1
   graalvm:
     implementation: "graalvm"
     language_version: "25"
@@ -178,11 +193,14 @@ runtime:
   # The wrapper's trust anchor, per tool-platform (the launcher is the
   # shipped runtime pair's process entry point — an unauthenticated
   # download would be a supply-chain hole). Digests are the v2.8.23
-  # release's monolith SHA256SUMS entries, fetched 2026-09-29.
+  # release's monolith SHA256SUMS entries (the gnu/macos/windows pins
+  # fetched 2026-09-29; the musl pins 2026-10-08).
   wrapper_sha256:
     macos-arm64: "c0612d95e224b4738ef135f9bad51b7a4e213365190996f98e9c9afec9a67393"
     linux-gnu-x86_64: "e21548ecb2746fcfea07d493fe423566fc363775703cc8b7257422fc1424c05b"
     linux-gnu-arm64: "006d4ee1e2aba0ae281e8567410114fd71552ff04cdd569465bf85b0c29c60fd"
+    linux-musl-x86_64: "a3722969a52002b975ae3ffdb554cdbcaa5ac61e06c0cb6b2ef0442471b657a1"
+    linux-musl-arm64: "8a641e348b2e2d2c0ae19c1ddae90bb6d5be127bc1a5f1d341320f3fdfd8921b"
     windows-ucrt64: "edd18a3f029db47d378acbc860348fa138730782b237e496dcaaa7e07b46b63b"
 
 # Factory tools used by tools/build (the imager + the preload shim): the
@@ -192,7 +210,8 @@ runtime:
 # tools/pins.rb reads this block into $GITHUB_ENV). The tfs pins are
 # cross-checked against the release's SHA256SUMS at fetch time; the
 # link-unit tarballs are NOT in that monolith, so these pins are their
-# single trust anchor (verified against the v2.8.23 downloads 2026-09-29).
+# single trust anchor (the gnu/macos pins verified against the v2.8.23
+# downloads 2026-09-29; the musl pins 2026-10-08).
 tools:
   repo: "tamatebako/tebako"
   release: "v2.8.23"
@@ -212,11 +231,15 @@ tools:
       macos-arm64: "ec82f16db7fa0040c82d36cce8626167669510beb9779a4d239c94e86330cec2"
       linux-gnu-x86_64: "b100df60b9aaf1022d4dcb3e43eab6c30de39bc1a7dcf1265610a0531b9a28c4"
       linux-gnu-arm64: "718389d36f0e7b1da88726c0dbf8460791183079bfa78627916fe2e0b1822566"
+      linux-musl-x86_64: "145a0a9e380527e9c63f72bbe17b63c43d25bab392f8a44137fd7742af539dc2"
+      linux-musl-arm64: "9e7df754ae2bc6d4461b0c53c5c2c3b691b43cf7b8d72a88c893ce259ef66402"
       windows-ucrt64: "b27a0fa7f9e9f8398d20d4e7589e53ce5f84fdfb287aa8ae9d06949d8fcad1d9"
     link-unit:                       # POSIX legs only; the windows image omits preload_shim
       macos-arm64: "16b6dfba230b4df345302653390cdffaf67a16b78009c4fe15a86ee8b6f08c5e"
       linux-gnu-x86_64: "859c80c01364a7bcda4ec15eeb17796fd9efcbcc3e107b8e703d2e20b0ffcd5e"
       linux-gnu-arm64: "7f58408c0ef03eda42144d695c62a31f087be42f38bbfc3fd6e89ab241051bd7"
+      linux-musl-x86_64: "52be963dc665c35cec1e429aa4564ba82a0cb9cb1780a8694c38ce9774b5da01"
+      linux-musl-arm64: "e45dd9736e662378959e38cc9cc1adcf7fb53579fff25ec5f6cef8e1caaa4939"
 
 image:
   format: limnifs

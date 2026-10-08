@@ -215,10 +215,25 @@ mkdir -p "$WORK" "$OUT"
 # ------------------------------------------------------------------ fetch
 step "fetch + sha256-verify $IMPLEMENTATION $VERSION ($TRIPLET)"
 ARCHIVE="$WORK/$IMPLEMENTATION-jdk$EXT"
-if [ ! -f "$ARCHIVE" ]; then
-  curl -sL --fail -o "$ARCHIVE" "$URL"
-fi
-sha256_check "$SHA256" "$ARCHIVE"
+# Bounded re-download on a digest mismatch (3 attempts): a poisoned CDN
+# edge or a truncated-but-200 body must not fail the leg on first strike
+# (the aarch64 musl leg died exactly so on 2026-10-08 — upstream bytes
+# verified against the pin off-runner), and a mismatched archive must
+# never ride the [ -f ] reuse guard into the next attempt.
+attempt=1
+while :; do
+  if [ ! -f "$ARCHIVE" ]; then
+    curl -sL --fail -o "$ARCHIVE" "$URL"
+  fi
+  if sha256_check "$SHA256" "$ARCHIVE"; then
+    break
+  fi
+  rm -f "$ARCHIVE"
+  [ "$attempt" -ge 3 ] && {
+    echo "::error::$ARCHIVE fails sha256 verification after 3 downloads (the recipe pin is $SHA256)"; exit 1; }
+  attempt=$((attempt + 1))
+  echo "::warning::$ARCHIVE sha256 mismatch — re-downloading (attempt $attempt/3)"
+done
 
 # ------------------------------------------------------------------ stage
 step "stage the payload tree (strip $STRIP)"
